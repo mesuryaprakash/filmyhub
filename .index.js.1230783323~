@@ -1,0 +1,902 @@
+/*
+TODO - MODULES
+- signature() | DONE
+- getGender() | DONE
+- getEpisode() | DONE
+- getMovie() | DONE
+- getSeries() | DONE
+- getIUFS() | DONE - IMDB URL For Series
+- getSeason() | DONE
+- getRating() | DONE
+- getRuntime() | DONE
+- getTBI() | DONE - TMDB ID by IMDB ID
+- searchSeries() | DONE
+- searchMovie() | DONE
+- checkDuplication() | DONE
+- createMoviePage() | DONE
+- createPersonPage() | DONE
+- createCharacterPage() | 
+- addCharacter() | 
+- createSeriePage()
+- createEpisodePage()
+- createSeasonPage()
+- getNOS() - Numbers of Season
+- updateEpisode()
+- addMovie()
+- addSeries()
+- addSeason()
+- addEpisode()
+
+TODD - FUNCTIONALITIES
+- Check for season before using getSeason() or add season not available in catch. | getSeason() |
+*/
+
+const axios = require('axios');
+const {Client} = require('@notionhq/client')
+
+const data = {
+  secretKey : 'secret_bEHDdhVOcLZYqIkYGLeTYHpr3cX3fOBKXTePjufGy3P',
+  tmdbAPI: 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NzQ1NTk5YjcwNmE1NmYxNWVjMDAxY2Y1MTZmZjEzYSIsInN1YiI6IjYyZDJjM2NjMzc4MDYyMDQ5ZjVmNDAyZSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.HzLaAoMzywxpayJaF6dX66NJ6vH9mQch38MkCVz9F64',
+  filmyhubDatabaseID: 'dd68a28e36c742c190a2e7b4c30f1f0d',
+  seasonDatabaseID: '08097dfc182d45aaa976e3d39e7a6bd5',
+  episodeDatabaseID: '2dfecd2c98fe45c6bd4df0381a583d11',
+  genreDatabaseID: 'ca341556da724163be3ad8de9cd1aca0',
+  characterDatabaseID: '4b7b7674e6ba4ac7bcb7f59651af420d',
+  personDatabaseID: 'fb90b99fa0d945ca81c9325a87fe828d',
+  moviePageID: '30cba620782e4170a5eaa5a93db7fae8',
+  seriesPageID: '12575960eb1d45b294ff2f265e62e956',
+}
+
+const notion = new Client({ auth: data.secretKey })
+const tmdbAuth = {
+  accept: 'application/json',
+  Authorization: `Bearer ${data.tmdbAPI}`
+}
+
+let arrays = {
+  movieArray : [],
+  seriesArray : [],
+  seasonArray: [],
+  episodeArray: [],
+  genreArray: [],
+  characterArray: [],
+  personArray: [],
+  searchArray: [],
+  genreArray: []
+}
+
+function signature(){
+  console.log(' /\\_/\\ \n|_- -_|\n  \\_/')
+} //first
+
+function getRating(vote) {
+  let ratingStars = Math.round(vote / 2);
+  switch(ratingStars) {
+    case 1:
+      ratingStars = '⭐'
+      break;
+    case 2:
+      ratingStars = '⭐⭐'
+      break;
+    case 3:
+      ratingStars = '⭐⭐⭐'
+      break;
+    case 4:
+      ratingStars = '⭐⭐⭐⭐'
+      break;
+    case 5:
+      ratingStars = '⭐⭐⭐⭐⭐'
+      break;
+    default:
+      ratingStars = null
+  }
+
+  return ratingStars;
+} //first
+
+function getRuntime(minutes) {
+  let runtime ;
+  if(minutes == null) {
+    runtime = null
+  } else {
+    if(minutes < 60 ){
+      runtime = minutes + "m" 
+    } else if(minutes >= 60 && minutes<1440){
+      runtime = Math.floor(minutes / 60)+"h "+(minutes%60)+"m"
+    } else {
+      runtime = Math.floor(Math.floor(minutes / 60)/24) + "d "+ Math.floor(Math.floor(minutes / 60)%24)+"h "+ (minutes %60) +"m"   
+    }
+  }
+  return runtime;
+}
+
+function getGender(number) {
+  switch(number){
+    case 1:
+      return 'FEMALE'
+      break
+    case 2:
+      return 'MALE'
+      break
+    case 3:
+      return 'NON-BINARY'
+      break
+    default:
+      return 'NOT SPECIFIED'
+  }
+}
+
+
+
+async function getEpisode(tmdbID,seasonNo,episodeNo) {
+  arrays.episodeArray.length = 0
+  const option = {
+    method: 'GET',
+    url : `https://api.themoviedb.org/3/tv/${tmdbID}/season/${seasonNo}/episode/${episodeNo}`,
+    headers : tmdbAuth
+  };
+
+  try {
+    const response = await axios.request(option)
+    const item = response.data
+
+    const episodeDetail = {
+      releaseDate : item.air_date ,
+      episodeNo : item.episode_number,
+      title : item.name,
+      overview : item.overview,
+      tmdbID : item.id,
+      runtime : getRuntime(item.runtime),
+      seasonNo : item.season_number,
+      poster : item.still_path,
+      rating : getRating(item.vote_average)
+    }
+
+    arrays.episodeArray.push(episodeDetail)
+    console.log(arrays.episodeArray)
+  } catch (error) {
+    console.log(error)
+  }
+} //first
+
+async function getMovie(tmdbID) {
+  arrays.movieArray.length = 0
+  arrays.genreArray.length = 0
+  
+  const option = {
+    method : 'GET',
+    url : `https://api.themoviedb.org/3/movie/${tmdbID}`,
+    headers : tmdbAuth
+  }
+
+  try {
+
+    let check;
+    let genrePageID;
+    const response = await axios.request(option)
+    const item = response.data
+
+    for(let genre of item.genres){
+      check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
+      if(isNaN(check)){
+        genrePageID = {
+          "id" : check.slice(check.lastIndexOf("-")+1)
+        }
+        arrays.genreArray.push(genrePageID)
+      } else {
+        const response = await notion.pages.create({
+          "parent" : {
+            "type": "database_id",
+            "database_id" : data.genreDatabaseID
+          },
+          "properties" : {
+            "Name": {
+              "title" : [{
+                "type": "text",
+                "text": {
+                  "content" : genre.name
+                }
+              }]
+            },
+            "TMDB ID": {
+              "type": "number",
+              "number" : genre.id
+            }
+          }
+        })
+        check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
+        genrePageID = check.slice(check.lastIndexOf("-")+1)
+        arrays.genreArray.push(genrePageID)
+      }
+    }
+
+    // console.log(arrays.genreArray)
+      
+    const movieDetail = {
+      adult : item.adult == false ? null : {"name": 'A',"color" : "red"},
+      cover : `https://www.themoviedb.org/t/p/w1920_and_h800_multi_faces/${item.backdrop_path}`,
+      genres : arrays.genreArray,
+      imdbURL : `https://www.imdb.com/title/${item.imdb_id}/`,
+      releaseDate : item.release_date ,
+      title : item.title,
+      overview : item.overview,
+      tmdbID : item.id,
+      runtime : getRuntime(item.runtime),
+      poster : `https://www.themoviedb.org/t/p/w600_and_h900_bestv2/${item.poster_path}`,
+      rating : getRating(item.vote_average),
+      status : item.status
+    }
+
+    // console.log(movieDetail.genres)
+
+    arrays.movieArray.push(movieDetail)
+    // console.log(arrays.movieArray)
+    return arrays.movieArray
+  } catch (error) {
+    console.log(error)
+  }
+} //first
+
+async function getSeries(tmdbID) {
+  arrays.seriesArray.length = 0
+  arrays.genreArray.length = 0
+  
+  const option = {
+    method: 'GET',
+    url : `https://api.themoviedb.org/3/tv/${tmdbID}`,
+    headers : tmdbAuth
+  };
+
+  try {
+    const response = await axios.request(option)
+    const item = response.data
+    // console.log(item)
+    let check;
+    let genrePageID;
+    for(let genre of item.genres){
+      check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
+      if(isNaN(check)){
+        genrePageID = {
+          "id" : check.slice(check.lastIndexOf("-")+1)
+        }
+        arrays.genreArray.push(genrePageID)
+      } else {
+        const response = await notion.pages.create({
+          "parent" : {
+            "type": "database_id",
+            "database_id" : data.genreDatabaseID
+          },
+          "properties" : {
+            "Name": {
+              "title" : [{
+                "type": "text",
+                "text": {
+                  "content" : genre.name
+                }
+              }]
+            },
+            "TMDB ID": {
+              "type": "number",
+              "number" : genre.id
+            }
+          }
+        })
+        check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
+        genrePageID = check.slice(check.lastIndexOf("-")+1)
+        arrays.genreArray.push(genrePageID)
+      }
+    }
+
+    const seriesDetail = {
+      cover : item.backdrop_path,
+      genres : arrays.genreArray,
+      imdb : await getIUFS(tmdbID),
+      releaseDate : item.first_air_date ,
+      title : item.name,
+      overview : item.overview,
+      tmdbID : item.id,
+      poster : `https://www.themoviedb.org/t/p/w600_and_h900_bestv2/${item.poster_path}`,
+      rating : getRating(item.vote_average),
+      status : item.status,
+      seasons : item.seasons
+    }
+
+    arrays.seriesArray.push(seriesDetail)
+    console.log(seriesDetail)
+    
+  } catch (error) {
+    console.log(error)
+  }
+} //first
+
+async function getSeason(tmdbID, seasonNo) {
+  arrays.seasonArray.length = 0
+  
+  const option = {
+    method: 'GET',
+    url : `https://api.themoviedb.org/3/tv/${tmdbID}/season/${seasonNo}`,
+    headers : tmdbAuth
+  };
+
+  try {
+    const response = await axios.request(option)
+    const item = response.data 
+
+    const seasonDetail = {
+      releaseDate : item.air_date ,
+      title : item.name,
+      overview : item.overview,
+      tmdbID : item.id,
+      seasonNo : item.season_number,
+      poster : item.poster_path,
+    }
+
+    arrays.seasonArray.push(seasonDetail)
+    console.log(arrays.seasonArray)
+  } catch(error) {
+    console.log(error)
+  }
+} //first
+
+async function getIUFS(tmdbID) {
+  const option = {
+    method : 'GET',
+    url : `https://api.themoviedb.org/3/tv/${tmdbID}/external_ids`,
+    headers : tmdbAuth
+  }
+
+  try{
+    const response = await axios.request(option)
+    
+    return `https://www.imdb.com/title/${response.data.imdb_id}`
+    
+  } catch(error) {
+    console.log(error)
+  }
+} //first
+
+async function getTBI(imdbID) {
+  const option = {
+    method: 'GET',
+    url: `https://api.themoviedb.org/3/find/${imdbID}?external_source=imdb_id`,
+    headers: tmdbAuth
+  }
+
+  try {
+    const response = await axios.request(option);
+    const name = response.data
+    // console.log(name)
+    return name
+  } catch(error) {
+    console.log(error)
+  }
+} //first
+
+async function searchSeries() {
+  arrays.searhArray.length = 0
+  
+  let input = prompt('Enter series name: ')
+  const option = {
+    method : 'GET',
+    url : `https://api.themoviedb.org/3/search/tv?query=${input.replaceAll('%','%25').replaceAll(':','%3A').replaceAll(' ','%20')}`,
+    headers: tmdbAuth
+  }
+  const response = await axios.request(option);
+  const series = response.data
+
+  if(series.results.length == 0) {
+    console.log('No result Found. Search again.')
+    return await searchSeries()
+  } else {
+    for(let i = 0; i < series.results.length ; i++) {
+      let obj = {
+        id: series.results[i].id,
+        title: series.results[i].name,
+        date: series.results[i].first_air_date
+      }
+      console.log(`${i+1}. ${obj.title} \tRelease Date - ${obj.date}`)
+      arrays.searchArray.push(obj)
+    }
+    let select = parseInt(prompt('Select: '))
+    for(;isNaN(select) || select < 0 || select > arrays.searchArray.length;) {
+      console.log("Invalid Selection")
+      select = parseInt(prompt('Select: '))
+    }
+    return select === 0 ? await searchSeries() : arrays.searchArray[select-1]
+  }  
+} //first
+
+async function searchMovie() {
+  arrays.searhArray.length = 0
+  
+  let input = prompt('Enter movie name: ')
+  const option = {
+    method : 'GET',
+    url : `https://api.themoviedb.org/3/search/movie?query=${input.replaceAll('%','%25').replaceAll(':','%3A').replaceAll(' ','%20')}`,
+    headers: tmdbAuth
+  }
+  const response = await axios.request(option);
+  const movie = response.data
+
+  if(movie.results.length == 0) {
+    console.log('No result Found. Search again.')
+    return await searchMovie
+  } else {
+    for(let i = 0; i < movie.results.length ; i++) {
+      let obj = {
+        id: movie.results[i].id,
+        title: movie.results[i].title,
+        date: movie.results[i].release_date
+      }
+      console.log(`${i+1}. ${obj.title} \tRelease Date - ${obj.date}`)
+      arrays.searchArray.push(obj)
+    }
+    let select = parseInt(prompt('Select: '))
+    for(;isNaN(select) || select < 0 || select > arrays.searchArray.length;) {
+      console.log("Invalid Selection")
+      select = parseInt(prompt('Select: '))
+    }
+    // console.log(select === 0 ? await searchMovie() : arrays.searchArray[select-1])
+    return select === 0 ? await searchMovie() : arrays.searchArray[select-1]
+  }  
+} //first
+
+const checkDuplication = async (tmdbID,title,databaseID) => {
+  const response = await notion.databases.query({
+    database_id: databaseID,
+    filter: {
+      "and" : [
+        {
+          property: "TMDB ID",
+          number: {
+            equals: tmdbID
+          }
+        },
+        {
+          property: "Name",
+          "rich_text": {
+            "equals" : title
+          }
+        }
+       ] 
+    }
+  });
+  // console.log(response.results[0].properties)
+  return response.results.length === 0 ? tmdbID  : response.results[0].url 
+}
+
+async function createMoviePage(tmdbID) {
+  const details = await getMovie(tmdbID);
+  for (let item of details) {
+    console.log(`Creating ${item.title} page.`)
+    let releaseDate = item.releaseDate == null ? null : {"start" : item.releaseDate}
+    let rating = item.rating == null ? null : {"name": item.rating,"color" : "purple"}
+    
+    const response = await notion.pages.create({
+      "parent": {
+        "type": "database_id",
+        "database_id": data.filmyhubDatabaseID
+      },
+      "cover" : {
+        "type" : "external",
+        "external" : {
+          "url": item.cover
+        }
+      },
+      "icon" : {
+        "type" : "external",
+        "external" : {
+          "url": item.poster
+        }
+      },
+      "properties": {
+        "Name": {
+          "title": [
+            {
+              "type": "text",
+              "text": {
+                "content": item.title
+              }
+            }
+          ]
+        },
+        "Rating": {
+          "type": "select",
+          "select": rating
+        },
+        "Status" : {
+          "rich_text" : [
+            {
+              "type" : "text",
+              "text" : {
+                "content" : item.status
+              }
+            }
+          ]
+        },
+        "Runtime" : {
+          "rich_text" : [
+            {
+              "type" : "text",
+              "text" : {
+                "content" : item.runtime
+              }
+            }
+          ]
+        },
+        "Release Date" : {
+          "type" : "date",
+          "date" : releaseDate
+        },
+        "Poster" : {
+          "type" : "files",
+          "files": [
+            {
+              "name":"poster",
+              "type": "external",
+              "external": {
+                "url": item.poster
+              }
+            }
+          ]
+        },
+        "IMDB URL" : {
+          "type" : "url",
+          "url" : item.imdbURL
+        },
+        "Genres": {
+          "relation" : item.genres
+        },
+        "TMDB ID" : {
+          "type" : "number",
+          "number" : item.tmdbID
+        },
+        "Overview" : {
+          "rich_text" : [
+            {
+              "type" : "text",
+              "text" : {
+                "content" : item.overview
+              }
+            }
+          ]
+        },
+        "Type": {
+          "type": "relation",
+          "relation": [{
+            "id" : data.moviePageID
+          }]
+        },
+      }
+    })
+    console.log(`${item.title} is added in FilmyHub`)
+  }
+}
+
+async function addMovie(tmdbID) {
+  console.log('Getting movie info.')
+  const details = await getMovie(tmdbID);
+  for (let item of details) {
+    console.log(`Checking for ${item.title} in FilmyHub.`)
+    let check = await checkDuplication(item.tmdbID,item.title,data.filmyhubDatabaseID)
+    if(isNaN(check)) {
+      console.log(`${item.title} found in FilmyHub.`)
+      console.log(check)
+    } else {
+      console.log(`${item.title} not found in FilmyHub.`)
+      console.log(`${item.title}, adding in FilmyHub.`)
+      await createMoviePage(tmdbID)
+      let check = await checkDuplication(item.tmdbID,item.title,data.filmyhubDatabaseID)
+      let moviePageID = check.slice(check.lastIndexOf("-")+1)
+      console.log(`Adding characters in ${item.title}`)
+      await addCharacter(tmdbID, moviePageID)
+      console.log(`${item.title} is added in FilmyHub.`)
+    }
+  }
+}
+
+async function addSeries(tmdbID) {
+  console.log('Getting series info.')
+  const details = await getSeries(tmdbID);
+  for (let item of details) {
+    console.log(`Checking for ${item.title} in FilmyHub.`)
+    let check = await checkDuplication(item.tmdbID,item.title,data.filmyhubDatabaseID)
+    if(isNaN(check)) {
+      console.log(`${item.title} found in FilmyHub.`)
+      console.log(check)
+    } else {
+      console.log(`${item.title} not found in FilmyHub.`)
+      console.log(`${item.title}, adding in FilmyHub.`)
+      await createSeriesPage(tmdbID)
+      let check = await checkDuplication(item.tmdbID,item.title,data.filmyhubDatabaseID)
+      let seriesPageID = check.slice(check.lastIndexOf("-")+1)
+      console.log(`Adding characters in ${item.title}`)
+      await addCharacter(tmdbID, seriesPageID)
+      console.log(`${item.title} is added in FilmyHub.`)
+      
+    }
+  }
+}
+
+async function createPersonPage(personID) {
+  const option = {
+    method : 'GET',
+    url : `https://api.themoviedb.org/3/person/${personID}`,
+    headers : tmdbAuth
+  }
+
+  let response = await axios.request(option)
+  const person = response.data
+  let birthday = person.birthday == null ? null : {"start" : person.birthday}
+  response = await notion.pages.create({
+    "parent": {
+      "type": "database_id",
+      "database_id": data.personDatabaseID
+    },
+    "icon" : {
+      "type" : "external",
+      "external" : {
+        "url": `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${person.profile_path}`
+      }
+    },
+    "properties": {
+      "Name": {
+        "title": [
+          {
+            "type": "text",
+            "text": {
+              "content": person.name
+            }
+          }
+        ]
+      },
+      "Gender": {
+        "type": "select",
+        "select": {
+          "name": getGender(person.gender),
+          "color" : "gray"
+        }
+      },
+      "Birthday" : {
+        "type" : "date",
+        "date" : birthday
+      },
+      "Profile" : {
+        "type" : "files",
+        "files": [
+          {
+            "name":"poster",
+            "type": "external",
+            "external": {
+              "url": `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${person.profile_path}`
+            }
+          }
+        ]
+      },
+      "TMDB ID" : {
+        "type" : "number",
+        "number" : person.id
+      },
+      "Known For" : {
+        "type": "select",
+        "select": {
+          "name": person.known_for_department,
+          "color" : "gray"
+        }
+      }
+    }
+  }) 
+}
+
+async function getCredit(tmdbID) {
+   const option = {
+    method : 'GET',
+    url : `https://api.themoviedb.org/3/movie/${tmdbID}/credits`,
+    headers : tmdbAuth
+  }
+
+  const response = await axios.request(option)
+  let crewDetail;
+  const cast = response.data.cast
+  const crew = response.data.crew
+  for(let i in crew){
+    if(crew[i].job == "Director" || crew[i].job == "Writer" || crew[i].job == "Producer" || crew[i].job == "Editor" || crew[i].job == "Sound Designer" ) {
+      crewDetail = {
+        gender : crew[i].gender,
+        name : crew[i].name,
+        characterName : crew[i].name,
+        profile : `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${crew[i].profile_path}`,
+        role : crew[i].job,
+        tmdbID : crew[i].id
+      }
+      arrays.characterArray.push(crewDetail)
+    }
+  }
+  if(cast.length > 10) {
+    for(let i  = 0 ; i < 10 ; i++){
+      let obj = {
+        gender : cast[i].gender,
+        tmdbID : cast[i].id,
+        role : cast[i].known_for_department,
+        name : cast[i].name,
+        characterName : cast[i].character,
+        profile : `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${cast[i].profile_path}`
+      }
+      arrays.characterArray.push(obj)
+    }
+  } else {
+    for (let i in cast){
+      let obj = {
+        gender : cast[i].gender,
+        tmdbID : cast[i].id,
+        role : cast[i].known_for_department,
+        name : cast[i].name,
+        characterName : cast[i].character,
+        profile : `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${cast[i].profile_path}`
+      }
+      arrays.characterArray.push(obj)
+    }
+  }
+  return arrays.characterArray
+  
+}
+
+async function addCharacter(tmdbID, pageID) {
+  let personPageID;
+  let characterArray = await getCredit(tmdbID)
+  for(let character of characterArray) {
+    let check = await checkDuplication(character.tmdbID, character.name, data.personDatabaseID)
+    if(isNaN(check)) {
+      // console.log('Person found')
+      // console.log('Fetching Person Details from FilmyHub')
+      personPageID = check.slice(check.lastIndexOf("-")+1)
+      // console.log(personPageID)
+      let response = await notion.pages.create({
+        "parent": {
+          "type": "database_id",
+          "database_id": data.characterDatabaseID
+        },
+        "icon" : {
+          "type" : "external",
+          "external" : {
+            "url": `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${character.profile}`
+          }
+        },
+        "properties": {
+          "Name": {
+            "title": [
+              {
+                "type": "text",
+                "text": {
+                  "content": character.characterName
+                }
+              }
+            ]
+          },
+          "Gender": {
+            "type": "select",
+            "select": {
+              "name": getGender(character.gender),
+              "color" : "gray"
+            }
+          },
+          "Profile" : {
+            "type" : "files",
+            "files": [
+              {
+                "name":"poster",
+                "type": "external",
+                "external": {
+                  "url": `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${character.profile}`
+                }
+              }
+            ]
+          },
+          "Role" : {
+            "type": "select",
+            "select": {
+              "name": character.role,
+              "color" : "gray"
+            }
+          },
+          "Person": {
+            "type": "relation",
+            "relation": [{
+              "id" : personPageID
+            }]
+          },
+          "FilmyHub": {
+            "type": "relation",
+            "relation": [{
+              "id" : pageID
+            }]
+          },
+        }
+      }) 
+    } else {
+      // console.log(`Adding ${character.name} in FilmyHub.`)
+      await createPersonPage(character.tmdbID)
+      let check = await checkDuplication(character.tmdbID, character.name, data.personDatabaseID)
+      // console.log('Fetching Person Details from FilmyHub')
+      // console.log(check)
+      personPageID = check.slice(check.lastIndexOf("-")+1)
+      // console.log(personPageID)
+      let response = await notion.pages.create({
+        "parent": {
+          "type": "database_id",
+          "database_id": data.characterDatabaseID
+        },
+        "icon" : {
+          "type" : "external",
+          "external" : {
+            "url": `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${character.profile}`
+          }
+        },
+        "properties": {
+          "Name": {
+            "title": [
+              {
+                "type": "text",
+                "text": {
+                  "content": character.characterName
+                }
+              }
+            ]
+          },
+          "Gender": {
+            "type": "select",
+            "select": {
+              "name": getGender(character.gender),
+              "color" : "gray"
+            }
+          },
+          "Profile" : {
+            "type" : "files",
+            "files": [
+              {
+                "name":"poster",
+                "type": "external",
+                "external": {
+                  "url": `https://www.themoviedb.org/t/p/w300_and_h450_bestv2${character.profile}`
+                }
+              }
+            ]
+          },
+          "Role" : {
+            "type": "select",
+            "select": {
+              "name": character.role,
+              "color" : "gray"
+            }
+          },
+          "Person": {
+            "type": "relation",
+            "relation": [{
+              "id" : personPageID
+            }]
+          },
+          "FilmyHub": {
+            "type": "relation",
+            "relation": [{
+              "id" : pageID
+            }]
+          },
+        }
+      })
+    }
+  }
+}
+
+// searchMovie()
+// getTBI('tt2085059')
+// createMoviePage(916224)
+// getMovie(385687)
+// createPersonPage(15841)
+// getCredit(872585)
+getSeries(114472)
+// getSeason(114472,2)
+// getIMDBURLforSeries(114472)
+// getEpisode(114472,1,4)
+// addMovie(550)
+
+// checkDuplication(7,'Untitled',data.personDatabaseID)
