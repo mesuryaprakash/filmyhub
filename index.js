@@ -36,12 +36,11 @@ TODD - FUNCTIONALITIES
 
 const axios = require('axios');
 const {Client} = require('@notionhq/client')
-const prompt = require("prompt-sync")();
 
 const data = {
   secretKey : 'secret_bEHDdhVOcLZYqIkYGLeTYHpr3cX3fOBKXTePjufGy3P',
   tmdbAPI: 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NzQ1NTk5YjcwNmE1NmYxNWVjMDAxY2Y1MTZmZjEzYSIsInN1YiI6IjYyZDJjM2NjMzc4MDYyMDQ5ZjVmNDAyZSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.HzLaAoMzywxpayJaF6dX66NJ6vH9mQch38MkCVz9F64',
-  filmyhubDatabaseID: '1dd5fa65b6a3452090ba4f57fd83dd10',
+  filmyhubDatabaseID: 'cde8197fbba548cfa26de06b231bb45e',
   seasonDatabaseID: '3a24fe21b3c04f339785fa55114efee8',
   episodeDatabaseID: '9c091cfd746d48a0b1a03bc439b60635',
   genreDatabaseID: 'fcabf793747d422cb9355f70d2beb0bb',
@@ -154,7 +153,6 @@ async function getTBI() {
     url: `https://api.themoviedb.org/3/find/${imdbID}?external_source=imdb_id`,
     headers: tmdbAuth
   }
-  // console.log('try')
 
   try {
     const response = await axios.request(option);
@@ -172,7 +170,6 @@ async function checkingAddMovie(){
 }
 
 async function getMovie(tmdbID) {
-  console.log('Get Movie Starts')
   arrays.movieArray.length = 0
   arrays.genreArray.length = 0
   
@@ -186,13 +183,12 @@ async function getMovie(tmdbID) {
     let check, genrePageID;
     const response = await axios.request(option)
     const item = response.data
-    console.log(item.title)
+
     for(let genre of item.genres){
       check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
-      // console.log(check)
       if(isNaN(check)){
         genrePageID = {
-          "id" : check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+          "id" : check.slice(check.lastIndexOf("-")+1)
         }
         arrays.genreArray.push(genrePageID)
       } else {
@@ -219,7 +215,7 @@ async function getMovie(tmdbID) {
         // })
         check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
         genrePageID = {
-          "id" : check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+          "id" : check.slice(check.lastIndexOf("-")+1)
         }
         arrays.genreArray.push(genrePageID)
       }
@@ -238,14 +234,15 @@ async function getMovie(tmdbID) {
       tmdbID : item.id,
       runtime : getRuntime(item.runtime),
       poster : `https://www.themoviedb.org/t/p/w600_and_h900_bestv2${item.poster_path}`,
-      rating : Math.round(item.vote_average) + "/10 ⭐",
+      rating : getRating(item.vote_average),
       status : item.status
     }
 
     // console.log(movieDetail.genres)
 
     arrays.movieArray.push(movieDetail)
-    console.log(arrays.movieArray)
+    console.log("Get Movie worked.")
+    // console.log(arrays.movieArray)
     return arrays.movieArray
   } catch (error) {
     console.log('Invalid TMDB ID.')
@@ -274,13 +271,13 @@ async function getSeries(tmdbID) {
       check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
       if(isNaN(check)){
         genrePageID = {
-          "id" : check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+          "id" : check.slice(check.lastIndexOf("-")+1)
         }
         arrays.genreArray.push(genrePageID)
       } else {
         await createGenrePage(genre)
         check = await checkDuplication(genre.id,genre.name,data.genreDatabaseID)
-        genrePageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+        genrePageID = check.slice(check.lastIndexOf("-")+1)
         arrays.genreArray.push(genrePageID)
       }
     }
@@ -294,7 +291,7 @@ async function getSeries(tmdbID) {
       overview : item.overview,
       tmdbID : item.id,
       poster : `https://www.themoviedb.org/t/p/w600_and_h900_bestv2/${item.poster_path}`,
-      rating : Math.round(item.vote_average) + "/10 ⭐",
+      rating : getRating(item.vote_average),
       status : item.status,
       seasons : item.seasons,
       NOS : item.number_of_seasons
@@ -329,7 +326,7 @@ async function getSeason(tmdbID, seasonNo) {
       title : item.name,
       overview : item.overview,
       tmdbID : item.id,
-      seasonNo : (Number(item.season_number)).toLocaleString('en-US', {minimumIntegerDigits: 2, useGrouping:false}),
+      seasonNo : item.season_number,
       poster : `https://www.themoviedb.org/t/p/w130_and_h195_bestv2${item.poster_path}`,
       episode: item.episodes,
       checkSeason : item.episodes[0].runtime
@@ -356,14 +353,14 @@ async function getEpisode(tmdbID,seasonNo,episodeNo) {
 
     const episodeDetail = {
       releaseDate : item.air_date ,
-      episodeNo : (Number(item.episode_number)).toLocaleString('en-US', {minimumIntegerDigits: 2, useGrouping:false}),
+      episodeNo : item.episode_number,
       title : item.name,
       overview : item.overview,
       tmdbID : item.id,
       runtime : getRuntime(item.runtime),
       seasonNo : item.season_number,
       poster : `https://www.themoviedb.org/t/p/w500_and_h282_face${item.still_path}`,
-      rating : Math.round(item.vote_average) + "/10 ⭐"
+      rating : getRating(item.vote_average)
     }
 
     arrays.episodeArray.push(episodeDetail)
@@ -513,7 +510,7 @@ const checkDuplication = async (tmdbID,title,databaseID) => {
           }
         },
         {
-          property: "NAME",
+          property: "Name",
           "rich_text": {
             "equals" : title
           }
@@ -562,7 +559,7 @@ async function createMoviePage(tmdbID) {
         "start" : item.releaseDate
       }
     }
-    // let rating = item.rating == null ? null : {"name": item.rating,"color" : "purple"}
+    let rating = item.rating == null ? null : {"name": item.rating,"color" : "purple"}
     
     const response = await notion.pages.create({
       "parent": {
@@ -597,7 +594,7 @@ async function createMoviePage(tmdbID) {
             {
               "type" : "text",
               "text" : {
-                "content" : item.rating
+                "content" : rating
               }
             }
           ]
@@ -684,7 +681,7 @@ async function createSeriesPage(tmdbID) {
         "start" : item.releaseDate
       }
     }
-    // let rating = item.rating == null ? null : {"name": item.rating,"color" : "purple"}
+    let rating = item.rating == null ? null : {"name": item.rating,"color" : "purple"}
     
     const response = await notion.pages.create({
       "parent": {
@@ -715,14 +712,8 @@ async function createSeriesPage(tmdbID) {
           ]
         },
         "IMDB RATING": {
-          "rich_text" : [
-            {
-              "type" : "text",
-              "text" : {
-                "content" : item.rating
-              }
-            }
-          ]
+          "type": "select",
+          "select": rating
         },
         "STATUS" : {
           "rich_text" : [
@@ -786,7 +777,6 @@ async function createSeriesPage(tmdbID) {
 async function createSeasonPage(tmdbID, seasonNo, seriesPageID) {
   const details = await getSeason(tmdbID, seasonNo);
   // console.log(details)
-  console.log(details[0].checkSeason);
   if(details[0].checkSeason === null && seasonNo > 0) {
     return null;
   } else {
@@ -854,7 +844,7 @@ async function createSeasonPage(tmdbID, seasonNo, seriesPageID) {
           "SEASON" : {
             "type": "select",
             "select": {
-              "name": seasonNo + " SEASON",
+              "name": "SEASON "+seasonNo,
               "color" : "default"
             }
           },
@@ -878,7 +868,7 @@ async function createEpisodePage(tmdbID,seasonNo,episodeNo,seriesPageID,seasonPa
   } else {
     for (let item of details) {
       let releaseDate = item.releaseDate == null ? null : {"start" : item.releaseDate}
-      // let rating = item.rating == null ? null : {"name": item.rating,"color" : "purple"}
+      let rating = item.rating == null ? null : {"name": item.rating,"color" : "purple"}
       
       const response = await notion.pages.create({
         "parent": {
@@ -909,14 +899,8 @@ async function createEpisodePage(tmdbID,seasonNo,episodeNo,seriesPageID,seasonPa
             ]
           },
           "IMDB RATING": {
-            "rich_text" : [
-              {
-                "type" : "text",
-                "text" : {
-                  "content" : item.rating
-                }
-              }
-            ]
+            "type": "select",
+            "select": rating
           },
           "RELEASE DATE" : {
             "type" : "date",
@@ -937,7 +921,7 @@ async function createEpisodePage(tmdbID,seasonNo,episodeNo,seriesPageID,seasonPa
           "EPISODE" : {
             "type": "select",
             "select": {
-              "name": episodeNo + " EPISODE",
+              "name": "EPISODE "+episodeNo,
               "color" : "default"
             }
           },
@@ -1055,10 +1039,7 @@ async function createPersonPage(personID,type) {
 
 async function addMovie(tmdbID) {
   // console.log('addMovie Starts')
-  // console.log(tmdbID)
   let movie = await getMovie(tmdbID)
-  // console.log("getMovie worked")
-  // console.log(movie)
   if(movie == null) {
     return null
   } else {
@@ -1079,7 +1060,7 @@ async function addMovie(tmdbID) {
       let personConfirmation = prompt('Want to add characters & crew members? [Y/N] : ').toLowerCase()
       if(personConfirmation === 'y') {
         check = await checkDuplication(tmdbID,title,data.filmyhubDatabaseID)
-        let moviePageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+        let moviePageID = check.slice(check.lastIndexOf("-")+1)
         console.log('Adding character & crew members.')
         await addCharacter(type, tmdbID, moviePageID)
       }
@@ -1100,14 +1081,12 @@ async function addMovieByIMDB(){
   let result = await getTBI()
   // console.log(result)
   if(result.movie_results.length == 0) {
-    console.log('Invalid IMDB ID. or Item not found.')
-    if(prompt('Want to try again?[Y/N]: ').toLowerCase() === 'y') {
-      await addMovieByIMDB()
-    }
+    console.log('Invalid IMDB ID.')
+    await addMovieByIMDB()
   } else {
     let tmdbID = result.movie_results[0].id
     // let movie = await getMovie(tmdbID)
-    let title = result.movie_results[0].title
+    // let title = movie[0].title
     await addMovie(tmdbID, title)
   }
 }
@@ -1129,7 +1108,7 @@ async function addSeries(tmdbID) {
       console.log(`Adding ${title} in FilmyHub.`)
       await createSeriesPage(tmdbID)
       check = await checkDuplication(tmdbID,title,data.filmyhubDatabaseID)
-      let seriesPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+      let seriesPageID = check.slice(check.lastIndexOf("-")+1)
       // console.log(seriesPageID)
       let personConfirmation = prompt('Want to add characters & crew members?[Y/N]: ').toLowerCase()
       if(personConfirmation === 'y') {
@@ -1148,7 +1127,7 @@ async function addSeries(tmdbID) {
             let seasonTitle = arrays.seasonArray[0].title
             console.log(`${seasonTitle} added.`)
             check = await checkDuplication(seasonTmdbID,seasonTitle,data.seasonDatabaseID)
-            let seasonPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+            let seasonPageID = check.slice(check.lastIndexOf("-")+1)
             // console.log(arrays.seasonArray[0].episode)
             for(let episode of arrays.seasonArray[0].episode) {
               await createEpisodePage(tmdbID,season.season_number,episode.episode_number,seriesPageID,seasonPageID)
@@ -1194,7 +1173,7 @@ async function addSeason() {
   check = await checkDuplication(tmdbID, seriesTitle, data.filmyhubDatabaseID)
   if (isNaN(check)) {
     console.log('Series Found.');
-    let seriesPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+    let seriesPageID = check.slice(check.lastIndexOf('-') + 1);
       // console.log(seriesPageID)
     let season = await getSeason(tmdbID, seasonNo);
     if(season === false ){
@@ -1218,7 +1197,7 @@ async function addSeason() {
         } else  {
           console.log(`${seasonTitle} added.`)
           check = await checkDuplication(seasonTmdbID, seasonTitle, data.seasonDatabaseID);
-          let seasonPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+          let seasonPageID = check.slice(check.lastIndexOf('-') + 1);
           for(let episode of arrays.seasonArray[0].episode) {
             await createEpisodePage(tmdbID,seasonNo,episode.episode_number,seriesPageID,seasonPageID)
             console.log(`\tEpisode ${episode.episode_number} added.`)
@@ -1249,7 +1228,7 @@ async function addEpisode() {
   check = await checkDuplication(tmdbID, seriesTitle, data.filmyhubDatabaseID)
   if (isNaN(check)) {
     console.log('Series Found.');
-    let seriesPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+    let seriesPageID = check.slice(check.lastIndexOf('-') + 1);
     
     let season = await getSeason(tmdbID, seasonNo)
     if(season === false ){
@@ -1261,7 +1240,7 @@ async function addEpisode() {
       check = await checkDuplication(seasonTmdbID, seasonTitle, data.seasonDatabaseID);
       if(isNaN(check)){
         console.log('Season Found.')
-        let seasonPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
+        let seasonPageID = check.slice(check.lastIndexOf('-') + 1);
         let episode = await getEpisode(tmdbID,seasonNo,episodeNo)
         if(episode === false){
           console.log(`Episode ${episodeNo} not exist.`)
@@ -1308,13 +1287,10 @@ async function addEpisode() {
 async function addCharacter(type, tmdbID, pageID) {
   let personPageID, check;
   let characterArray = await getCredit(type, tmdbID)
-  console.log(characterArray);
   for(let character of characterArray) {
     check = await checkDuplication(character.tmdbID, character.name, data.personDatabaseID)
-    console.log(check);
     if(isNaN(check)) {
-      personPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
-      console.log(personPageID)
+      personPageID = check.slice(check.lastIndexOf("-")+1)
       let response = await notion.pages.create({
         "parent": {
           "type": "database_id",
@@ -1327,7 +1303,7 @@ async function addCharacter(type, tmdbID, pageID) {
           }
         },
         "properties": {
-          "NAME": {
+          "Name": {
             "title": [
               {
                 "type": "text",
@@ -1337,14 +1313,14 @@ async function addCharacter(type, tmdbID, pageID) {
               }
             ]
           },
-          "GENDER": {
+          "Gender": {
             "type": "select",
             "select": {
               "name": getGender(character.gender),
               "color" : "gray"
             }
           },
-          "PROFILE" : {
+          "Profile" : {
             "type" : "files",
             "files": [
               {
@@ -1356,20 +1332,20 @@ async function addCharacter(type, tmdbID, pageID) {
               }
             ]
           },
-          "ROLE" : {
+          "Role" : {
             "type": "select",
             "select": {
               "name": character.role,
               "color" : "gray"
             }
           },
-          "PERSON": {
+          "Person": {
             "type": "relation",
             "relation": [{
               "id" : personPageID
             }]
           },
-          "MOVIES & SERIES": {
+          "FilmyHub": {
             "type": "relation",
             "relation": [{
               "id" : pageID
@@ -1381,8 +1357,7 @@ async function addCharacter(type, tmdbID, pageID) {
     } else {
       await createPersonPage(character.tmdbID)
       check = await checkDuplication(character.tmdbID, character.name, data.personDatabaseID)
-      personPageID = check.includes('-') ? check.slice(check.lastIndexOf("-")+1) : check.slice(check.lastIndexOf("/")+1)
-      console.log(personPageID)
+      personPageID = check.slice(check.lastIndexOf("-")+1)
       let response = await notion.pages.create({
         "parent": {
           "type": "database_id",
@@ -1395,7 +1370,7 @@ async function addCharacter(type, tmdbID, pageID) {
           }
         },
         "properties": {
-          "NAME": {
+          "Name": {
             "title": [
               {
                 "type": "text",
@@ -1405,14 +1380,14 @@ async function addCharacter(type, tmdbID, pageID) {
               }
             ]
           },
-          "GENDER": {
+          "Gender": {
             "type": "select",
             "select": {
               "name": getGender(character.gender),
               "color" : "gray"
             }
           },
-          "PROFILE" : {
+          "Profile" : {
             "type" : "files",
             "files": [
               {
@@ -1424,20 +1399,20 @@ async function addCharacter(type, tmdbID, pageID) {
               }
             ]
           },
-          "ROLE" : {
+          "Role" : {
             "type": "select",
             "select": {
               "name": character.role,
               "color" : "gray"
             }
           },
-          "PERSON": {
+          "Person": {
             "type": "relation",
             "relation": [{
               "id" : personPageID
             }]
           },
-          "MOVIES & SERIES": {
+          "FilmyHub": {
             "type": "relation",
             "relation": [{
               "id" : pageID
@@ -1453,7 +1428,7 @@ async function addCharacter(type, tmdbID, pageID) {
 async function movieMenu() {
   let tmdbID, title, movie;
 
-  console.log('0. Back to main menu.\n1. Search movie\n2. Add by TMDB ID\n3. Add by IMDB ID')
+  console.log('0. Back to main menu.\n1. Search movie\n2. Add by TMDB ID\n3. Add by IMDBID')
   let movieOption = parseInt(prompt('Select option: '))
   let addMovieReturn
   switch (movieOption) {
@@ -1464,7 +1439,6 @@ async function movieMenu() {
       let searchResult = await searchMovie()
       tmdbID = searchResult.id
       title = searchResult.title
-      // console.log(tmdbID)
       // console.log('Search Result Ended')
       addMovieReturn = await addMovie(tmdbID, title)
       if(addMovieReturn !== 'Already Exist') {
